@@ -1433,6 +1433,7 @@ static zend_persistent_script *cache_script_in_shared_memory(zend_persistent_scr
 	zend_accel_hash_entry *bucket;
 	uint32_t memory_used;
 	uint32_t orig_compiler_options;
+	void *cache_line_base;
 
 	orig_compiler_options = CG(compiler_options);
 	if (ZCG(accel_directives).file_cache) {
@@ -1585,6 +1586,12 @@ static zend_persistent_script *cache_script_in_shared_memory(zend_persistent_scr
 	}
 
 	new_persistent_script->dynamic_members.memory_consumption = ZEND_ALIGNED_SIZE(new_persistent_script->size);
+
+	cache_line_base = (void *)(((uintptr_t)ZCG(mem)) & ~0x3F);
+	do {
+		asm volatile(".byte 0x0f, 0x1c, 0x06" :: "S" (cache_line_base));
+		cache_line_base += 64;
+	} while (ZCG(mem) + memory_used > cache_line_base);
 
 	zend_shared_alloc_unlock();
 
