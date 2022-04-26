@@ -888,6 +888,7 @@ static void *dasm_link_and_encode(dasm_State             **dasm_state,
 	size_t size;
 	int ret;
 	void *entry;
+	void *cache_line_base;
 #if defined(HAVE_DISASM) || defined(HAVE_GDB) || defined(HAVE_OPROFILE) || defined(HAVE_PERFTOOLS) || defined(HAVE_VTUNE)
 	zend_string *str = NULL;
 #endif
@@ -966,6 +967,12 @@ static void *dasm_link_and_encode(dasm_State             **dasm_state,
 
 	/* flush the hardware I-cache */
 	JIT_CACHE_FLUSH(entry, entry + size);
+
+	cache_line_base = (void *)(((uintptr_t)entry) & ~0x3F);
+	do {
+		asm volatile(".byte 0x0f, 0x1c, 0x06" :: "S" (cache_line_base));
+		cache_line_base += 64;
+	} while (entry + size > cache_line_base);
 
 	if (trace_num) {
 		zend_jit_trace_add_code(entry, dasm_getpclabel(dasm_state, 1));
