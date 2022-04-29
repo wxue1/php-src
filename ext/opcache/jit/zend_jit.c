@@ -4022,10 +4022,16 @@ ZEND_EXT_API void zend_jit_unprotect(void)
 ZEND_EXT_API void zend_jit_protect(void)
 {
 #ifdef HAVE_MPROTECT
+	void *cache_line_base;
 	if (!(JIT_G(debug) & (ZEND_JIT_DEBUG_GDB|ZEND_JIT_DEBUG_PERF_DUMP))) {
 		if (mprotect(dasm_buf, dasm_size, PROT_READ | PROT_EXEC) != 0) {
 			fprintf(stderr, "mprotect() failed [%d] %s\n", errno, strerror(errno));
 		}
+		cache_line_base = (void *)(((uintptr_t)dasm_buf) & ~0x3F);
+		do {
+			asm volatile(".byte 0x0f, 0x1c, 0x06" ::"S"(cache_line_base));
+			cache_line_base += 64;
+		} while (dasm_buf + dasm_size > cache_line_base);
 	}
 #elif _WIN32
 	if (!(JIT_G(debug) & (ZEND_JIT_DEBUG_GDB|ZEND_JIT_DEBUG_PERF_DUMP))) {
