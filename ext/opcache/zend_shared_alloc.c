@@ -260,7 +260,10 @@ int zend_shared_alloc_startup(size_t requested_size, size_t reserved_size)
 		i = ZSMMG(shared_segments_count) - 1;
 		if (ZSMMG(shared_segments)[i]->size - ZSMMG(shared_segments)[i]->pos >= reserved_size) {
 			ZSMMG(shared_segments)[i]->end = ZSMMG(shared_segments)[i]->size - reserved_size;
-			ZSMMG(reserved) = (char*)ZSMMG(shared_segments)[i]->p + ZSMMG(shared_segments)[i]->end;
+			//ZSMMG(reserved) = (char*)ZSMMG(shared_segments)[i]->p + ZSMMG(shared_segments)[i]->end;
+            char* p = NULL;
+            char* p2 = zend_get_jit_buffer(&p);
+            ZSMMG(reserved) = (void*) p2;
 			ZSMMG(reserved_size) = reserved_size;
 		} else {
 			zend_accel_error(ACCEL_LOG_FATAL, "Insufficient shared memory!");

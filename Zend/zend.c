@@ -35,6 +35,27 @@
 #include "zend_attributes.h"
 #include "zend_observer.h"
 
+#include <sys/mman.h>
+
+#define BUF_SIZE 500*1024*1024
+char tony_jit_buffer[BUF_SIZE+2*1024*1024]  __attribute__((section(".buffer"), aligned (4096)));
+
+ZEND_API char* zend_get_jit_buffer(char** ret)
+{
+	char* p_2M = (void*)(ZEND_MM_ALIGNED_SIZE_EX((ptrdiff_t)tony_jit_buffer, 2*1024*1024));
+
+    char* p = (char*) mmap(p_2M, BUF_SIZE,
+            PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_FIXED|MAP_SHARED|MAP_HUGETLB, -1, 0);
+    if (p == MAP_FAILED) {
+        fprintf(stderr, "Failed to mmap() JIT buffer\n");
+        exit(1);
+    }
+	if (ret != NULL)
+    {
+		*ret = p;
+	}
+    return p;
+}
 static size_t global_map_ptr_last = 0;
 
 #ifdef ZTS

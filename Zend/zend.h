@@ -266,6 +266,7 @@ ZEND_API void zend_post_deactivate_modules(void);
 
 ZEND_API void free_estring(char **str_p);
 
+ZEND_API char* zend_get_jit_buffer(char** ret);
 END_EXTERN_C()
 
 /* output support */
