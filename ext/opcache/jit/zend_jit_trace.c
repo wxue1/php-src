@@ -6762,8 +6762,13 @@ exit:
 	return ret;
 }
 
+//static void zend_jit_blacklist_root_trace(zend_op_array *op_array, const zend_op *opline, size_t offset)
 static void zend_jit_blacklist_root_trace(const zend_op *opline, size_t offset)
 {
+	// if (ZEND_JIT_TRACE_NUM >= JIT_G(max_root_traces)) {
+	// 	zend_jit_op_array_trace_extension *jit_extension;
+	// 	jit_extension = (zend_jit_op_array_trace_extension*)ZEND_FUNC_INFO(op_array);
+	// } else {
 	zend_shared_alloc_lock();
 
 	if (!(ZEND_OP_TRACE_INFO(opline, offset)->trace_flags & ZEND_JIT_TRACE_BLACKLISTED)) {
@@ -6780,6 +6785,7 @@ static void zend_jit_blacklist_root_trace(const zend_op *opline, size_t offset)
 	}
 
 	zend_shared_alloc_unlock();
+	//}
 }
 
 static zend_bool zend_jit_trace_is_bad_root(const zend_op *opline, zend_jit_trace_stop stop, size_t offset)
@@ -7123,6 +7129,17 @@ repeat:
 
 	if (ZEND_JIT_TRACE_NUM >= JIT_G(max_root_traces)) {
 		stop = ZEND_JIT_TRACE_STOP_TOO_MANY_TRACES;
+		//fprintf(stderr, "---- wangxue reset counter handler as original handler\n");
+		for (uint32_t i = 0; i < op_array->last; i++) {
+			if (jit_extension->trace_info[i].trace_flags & (ZEND_JIT_TRACE_START_LOOP|ZEND_JIT_TRACE_START_ENTER)) {
+				SHM_UNPROTECT();
+				zend_jit_unprotect();
+				op_array->opcodes[i].handler = jit_extension->trace_info[i].orig_handler;
+				fprintf(stderr, "---- wangxue reset counter handler as original handler\n");
+				zend_jit_protect();
+				SHM_PROTECT();
+			}
+		}
 		goto abort;
 	}
 
