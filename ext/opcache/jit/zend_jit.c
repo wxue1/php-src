@@ -45,6 +45,9 @@
 # include "jit/zend_jit_arm64.h"
 #endif
 
+#include <immintrin.h>
+#pragma GCC target("cldemote")
+
 #include "jit/zend_jit_internal.h"
 
 #ifdef ZTS
@@ -136,6 +139,17 @@ static bool zend_jit_needs_arg_dtor(const zend_function *func, uint32_t arg_num,
 static zend_jit_trace_info *zend_jit_get_current_trace_info(void);
 static uint32_t zend_jit_trace_find_exit_point(const void* addr);
 #endif
+
+static inline void shared_cacheline_demote(void *start, size_t size) {
+    void *cache_line_base;
+    cache_line_base = (void *)(((uintptr_t)start) & ~0x3F);
+    do {
+        //asm volatile(".byte 0x0f, 0x1c, 0x06" ::"S"(cache_line_base));
+        //asm volatile("cldemote (%0)\n"::"S"(cache_line_base));
+        _cldemote(cache_line_base);
+        cache_line_base += 64;
+    } while (start + size > cache_line_base);
+}
 
 static int zend_jit_assign_to_variable(dasm_State    **Dst,
                                        const zend_op  *opline,
@@ -4655,6 +4669,7 @@ ZEND_EXT_API void zend_jit_protect(void)
 		if (mprotect(dasm_buf, dasm_size, PROT_READ | PROT_EXEC) != 0) {
 			fprintf(stderr, "mprotect() failed [%d] %s\n", errno, strerror(errno));
 		}
+        shared_cacheline_demote(dasm_buf, dasm_size);
 	}
 #elif _WIN32
 	if (!(JIT_G(debug) & (ZEND_JIT_DEBUG_GDB|ZEND_JIT_DEBUG_PERF_DUMP))) {

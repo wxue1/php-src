@@ -87,8 +87,11 @@ typedef int gid_t;
 #include <sys/stat.h>
 #include <errno.h>
 
+#include <immintrin.h>
+#pragma GCC target("cldemote")
 #ifdef __AVX__
 #include <immintrin.h>
+#pragma GCC push_options
 #endif
 
 ZEND_EXTENSION();
@@ -162,6 +165,17 @@ static inline int is_stream_path(const char *filename)
 	     *p == '+' || *p == '-' || *p == '.';
 	     p++);
 	return ((p != filename) && (p[0] == ':') && (p[1] == '/') && (p[2] == '/'));
+}
+
+static inline void shared_cacheline_demote(void *start, size_t size) {
+    void *cache_line_base;
+    cache_line_base = (void *)(((uintptr_t)start) & ~0x3F);
+    do {
+        //asm volatile(".byte 0x0f, 0x1c, 0x06" ::"S"(cache_line_base));
+        //asm volatile("cldemote (%0)\n"::"S"(cache_line_base));
+        _cldemote(cache_line_base);
+        cache_line_base += 64;
+    } while (start + size > cache_line_base);
 }
 
 static inline int is_cacheable_stream_path(const char *filename)
@@ -590,6 +604,7 @@ static void accel_copy_permanent_strings(zend_new_interned_string_func_t new_int
 	uint32_t j;
 	Bucket *p, *q;
 	HashTable *ht;
+    //shared_cacheline_demote((void *)(ht), (size_t)sizeof(HashTable));
 
 	/* empty string */
 	zend_empty_string = new_interned_string(zend_empty_string);
@@ -1642,6 +1657,7 @@ static zend_persistent_script *cache_script_in_shared_memory(zend_persistent_scr
 	}
 
 	new_persistent_script->dynamic_members.memory_consumption = ZEND_ALIGNED_SIZE(new_persistent_script->size);
+    shared_cacheline_demote(ZCG(mem), (size_t)(memory_used + 64));
 
 	zend_shared_alloc_unlock();
 
@@ -3001,6 +3017,7 @@ static int accel_remap_huge_pages(void *start, size_t size, size_t real_size, co
 	if (ret == start) {
 		memcpy(start, mem, real_size);
 		mprotect(start, size, PROT_READ | PROT_EXEC);
+        shared_cacheline_demote(start, size);
 	}
 	munmap(mem, size);
 
@@ -4310,6 +4327,7 @@ static zend_persistent_script* preload_script_in_shared_memory(zend_persistent_s
 	}
 
 	new_persistent_script->dynamic_members.checksum = zend_accel_script_checksum(new_persistent_script);
+    shared_cacheline_demote(ZCG(mem), (size_t)(memory_used + 64));
 
 	/* store script structure in the hash table */
 	bucket = zend_accel_hash_update(&ZCSG(hash), new_persistent_script->script.filename, 0, new_persistent_script);
