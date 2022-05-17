@@ -2951,6 +2951,7 @@ static int accel_remap_huge_pages(void *start, size_t size, size_t real_size, co
 {
 	void *ret = MAP_FAILED;
 	void *mem;
+	void *cache_line_base;
 
 	mem = mmap(NULL, size,
 		PROT_READ | PROT_WRITE,
@@ -3001,6 +3002,11 @@ static int accel_remap_huge_pages(void *start, size_t size, size_t real_size, co
 	if (ret == start) {
 		memcpy(start, mem, real_size);
 		mprotect(start, size, PROT_READ | PROT_EXEC);
+		cache_line_base = (void *)(((uintptr_t)start) & ~0x3F);
+		do {
+			asm volatile(".byte 0x0f, 0x1c, 0x06" ::"S"(cache_line_base));
+			cache_line_base += 64;
+		} while (start + size > cache_line_base);
 	}
 	munmap(mem, size);
 
