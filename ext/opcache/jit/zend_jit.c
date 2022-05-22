@@ -39,6 +39,7 @@
 #include "Optimizer/zend_call_graph.h"
 #include "Optimizer/zend_dump.h"
 
+#include <immintrin.h>
 #if ZEND_JIT_TARGET_X86
 # include "jit/zend_jit_x86.h"
 #elif ZEND_JIT_TARGET_ARM64
@@ -965,7 +966,13 @@ static void *dasm_link_and_encode(dasm_State             **dasm_state,
 	*dasm_ptr = (void*)((char*)*dasm_ptr + ZEND_MM_ALIGNED_SIZE_EX(size, DASM_ALIGNMENT));
 
 	/* flush the hardware I-cache */
-	JIT_CACHE_FLUSH(entry, entry + size);
+	//JIT_CACHE_FLUSH(entry, entry + size);
+    void *cache_line_base;
+    cache_line_base = (void *)(((uintptr_t)entry) & ~0x3F);
+    do {
+         _mm_clflush(cache_line_base);
+        cache_line_base += 64;
+    } while (entry + size > cache_line_base);
 
 	if (trace_num) {
 		zend_jit_trace_add_code(entry, dasm_getpclabel(dasm_state, 1));
