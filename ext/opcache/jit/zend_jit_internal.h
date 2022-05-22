@@ -744,7 +744,7 @@ static zend_always_inline bool zend_jit_may_be_polymorphic_call(const zend_op *o
 #      error "Missing builtin to flush instruction cache for AArch64"
 #    endif
 #  else /* Not required to implement on archs with unified caches */
-#    define JIT_CACHE_FLUSH(from, to)
+#    define JIT_CACHE_FLUSH(from, to) __builtin___clear_cache((char*)(from), (char*)(to))
 #  endif
 #endif /* !JIT_CACHE_FLUSH */
 
