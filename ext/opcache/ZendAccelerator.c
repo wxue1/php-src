@@ -603,7 +603,6 @@ static void accel_copy_permanent_strings(zend_new_interned_string_func_t new_int
 	uint32_t j;
 	Bucket *p, *q;
 	HashTable *ht;
-    //shared_cacheline_demote((void *)(ht), (size_t)sizeof(HashTable));
 
 	/* empty string */
 	zend_empty_string = new_interned_string(zend_empty_string);
@@ -760,6 +759,7 @@ static void accel_copy_permanent_strings(zend_new_interned_string_func_t new_int
 			p->key = new_interned_string(p->key);
 		}
 	} ZEND_HASH_FOREACH_END();
+    shared_cacheline_demote((void *)(ht), 512000);
 }
 
 static zend_string* ZEND_FASTCALL accel_replace_string_by_shm_permanent(zend_string *str)
@@ -1656,7 +1656,7 @@ static zend_persistent_script *cache_script_in_shared_memory(zend_persistent_scr
 	}
 
 	new_persistent_script->dynamic_members.memory_consumption = ZEND_ALIGNED_SIZE(new_persistent_script->size);
-    shared_cacheline_demote(ZCG(mem), (size_t)(memory_used + 64));
+//    shared_cacheline_demote(ZCG(mem), (size_t)(memory_used + 64));
 
 	zend_shared_alloc_unlock();
 
