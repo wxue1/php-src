@@ -4669,7 +4669,7 @@ ZEND_EXT_API void zend_jit_protect(void)
 		if (mprotect(dasm_buf, dasm_size, PROT_READ | PROT_EXEC) != 0) {
 			fprintf(stderr, "mprotect() failed [%d] %s\n", errno, strerror(errno));
 		}
-        shared_cacheline_demote(dasm_buf, dasm_size);
+        //shared_cacheline_demote(dasm_buf, dasm_size);
 	}
 #elif _WIN32
 	if (!(JIT_G(debug) & (ZEND_JIT_DEBUG_GDB|ZEND_JIT_DEBUG_PERF_DUMP))) {

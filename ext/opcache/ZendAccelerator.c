@@ -1656,7 +1656,7 @@ static zend_persistent_script *cache_script_in_shared_memory(zend_persistent_scr
 	}
 
 	new_persistent_script->dynamic_members.memory_consumption = ZEND_ALIGNED_SIZE(new_persistent_script->size);
-    //shared_cacheline_demote(ZCG(mem), (size_t)(memory_used + 64));
+    shared_cacheline_demote(ZCG(mem), (size_t)(memory_used + 64));
 
 	zend_shared_alloc_unlock();
 
@@ -4326,7 +4326,7 @@ static zend_persistent_script* preload_script_in_shared_memory(zend_persistent_s
 	}
 
 	new_persistent_script->dynamic_members.checksum = zend_accel_script_checksum(new_persistent_script);
-    //shared_cacheline_demote(ZCG(mem), (size_t)(memory_used + 64));
+//    shared_cacheline_demote(ZCG(mem), (size_t)(memory_used + 64));
 
 	/* store script structure in the hash table */
 	bucket = zend_accel_hash_update(&ZCSG(hash), new_persistent_script->script.filename, 0, new_persistent_script);
