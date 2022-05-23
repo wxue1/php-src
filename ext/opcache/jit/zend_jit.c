@@ -944,7 +944,7 @@ static void *dasm_link_and_encode(dasm_State             **dasm_state,
 		}
 	}
 
-//    shared_cacheline_demote(dasm_ptr, size);
+    shared_cacheline_demote(dasm_ptr, size);
 	ret = dasm_link(dasm_state, &size);
 	if (ret != DASM_S_OK) {
 #if ZEND_DEBUG

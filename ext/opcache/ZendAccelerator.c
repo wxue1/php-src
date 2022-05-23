@@ -3016,7 +3016,7 @@ static int accel_remap_huge_pages(void *start, size_t size, size_t real_size, co
 	if (ret == start) {
 		memcpy(start, mem, real_size);
 		mprotect(start, size, PROT_READ | PROT_EXEC);
-        shared_cacheline_demote(start, size);
+//        shared_cacheline_demote(start, size);
 	}
 	munmap(mem, size);
 
