@@ -7022,6 +7022,8 @@ static void zend_jit_blacklist_root_trace(const zend_op *opline, size_t offset)
 			ZEND_OP_TRACE_INFO(opline, offset)->orig_handler;
 
 		ZEND_OP_TRACE_INFO(opline, offset)->trace_flags |= ZEND_JIT_TRACE_BLACKLISTED;
+        JIT_G(hot_loop) = 100000;
+        JIT_G(hot_func) = 100000;
 
 		zend_jit_protect();
 		SHM_PROTECT();
