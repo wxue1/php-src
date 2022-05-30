@@ -260,7 +260,10 @@ int zend_shared_alloc_startup(size_t requested_size, size_t reserved_size)
 		i = ZSMMG(shared_segments_count) - 1;
 		if (ZSMMG(shared_segments)[i]->size - ZSMMG(shared_segments)[i]->pos >= reserved_size) {
 			ZSMMG(shared_segments)[i]->end = ZSMMG(shared_segments)[i]->size - reserved_size;
-			ZSMMG(reserved) = (char*)ZSMMG(shared_segments)[i]->p + ZSMMG(shared_segments)[i]->end;
+			//ZSMMG(reserved) = (char*)ZSMMG(shared_segments)[i]->p + ZSMMG(shared_segments)[i]->end;
+            // Just for experiment - use our own JIT buffer which is close to PHP .text segment.
+            char* p = zend_get_jit_buffer();
+            ZSMMG(reserved) = (void*) p;
 			ZSMMG(reserved_size) = reserved_size;
 		} else {
 			zend_accel_error(ACCEL_LOG_FATAL, "Insufficient shared memory!");
