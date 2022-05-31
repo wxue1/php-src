@@ -37,6 +37,32 @@
 #include "zend_fibers.h"
 #include "Optimizer/zend_optimizer.h"
 
+#include <sys/mman.h>
+# ifdef MAP_ALIGNED_SUPER
+#    define MAP_HUGETLB MAP_ALIGNED_SUPER
+# endif
+
+#define BUF_SIZE 500*1024*1024
+char my_jit_buffer[BUF_SIZE+2*1024*1024]  __attribute__((section(".buffer"), aligned (4096)));
+
+ZEND_API char* zend_get_jit_buffer()
+{
+    void *p = MAP_FAILED;
+#  ifdef MAP_HUGETLB
+    long unsigned int huge_page_size = 2 * 1024 * 1024;
+	char* p_2M = (void*)(ZEND_MM_ALIGNED_SIZE_EX((ptrdiff_t)my_jit_buffer, huge_page_size));
+    p = mmap(p_2M, BUF_SIZE,
+            PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_FIXED|MAP_SHARED|MAP_HUGETLB, -1, 0);
+#  endif
+    if (p == MAP_FAILED) {
+        fprintf(stderr, "Failed to mmap() JIT buffer into huge pages, so fall back to 4KB page allocation\n");
+        p = mmap(my_jit_buffer, BUF_SIZE,
+            PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_FIXED|MAP_SHARED, -1, 0);
+        ZEND_ASSERT(p != MAP_FAILED);
+    }
+    return p;
+}
+
 static size_t global_map_ptr_last = 0;
 static bool startup_done = false;
 
