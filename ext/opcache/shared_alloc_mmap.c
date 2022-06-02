@@ -40,11 +40,51 @@
 # define MAP_HUGETLB MAP_ALIGNED_SUPER
 #endif
 
+static void* get_php_start_addr(void)
+{
+#if defined(__linux__)
+	/* Used to parse each field for the line in /proc/self/maps file */
+	long unsigned int start, end, offset, inode;
+	char perm[5], dev[10], name[MAXPATHLEN];
+	int ret;
+	FILE *f = NULL;
+
+	f = fopen("/proc/self/maps", "r");
+	if (!f) {
+		return NULL;
+	}
+
+	/* Only get the start address of the first PHP segment */
+	ret = fscanf(f, "%lx-%lx %4s %lx %9s %ld %s\n",
+					&start, &end, perm, &offset, dev, &inode, name);
+	fclose(f); f=NULL;
+
+	/* Expect to get seven fields */
+	if (7 == ret) {
+		return (void*)start;
+	}
+#endif /* __linux__ */
+	return NULL;
+}
+
 static int create_segments(size_t requested_size, zend_shared_segment ***shared_segments_p, int *shared_segments_count, char **error_in)
 {
 	zend_shared_segment *shared_segment;
 	int flags = PROT_READ | PROT_WRITE, fd = -1;
 	void *p;
+
+    void *php_start_addr = NULL; /* start address of first PHP segment */
+	void *preferred_mmap_addr = NULL; /* for mmap() */
+
+	long unsigned int huge_page_size = 2 * 1024 * 1024; /* 2MB page size */
+	long unsigned int normal_page_size = 4 * 1024; /* 4KB page size */
+
+#ifdef MAP_HUGETLB
+	long unsigned int one_page_hole = huge_page_size;	/* 2MB */
+#else
+	long unsigned int one_page_hole = 4 * 1024; /* 4KB */
+#endif /* MAP_HUGETLB */
+
 #ifdef PROT_MPROTECT
 	flags |= PROT_MPROTECT(PROT_EXEC);
 #endif
@@ -55,8 +95,29 @@ static int create_segments(size_t requested_size, zend_shared_segment ***shared_
 #ifdef PROT_MAX
 	flags |= PROT_MAX(PROT_READ | PROT_WRITE | PROT_EXEC);
 #endif
+//#ifdef MAP_HUGETLB
+//	size_t huge_page_size = 2 * 1024 * 1024;
+
+    /* Try to allocate memory just prior to PHP segments.
+	   This way can benefit 'near jump' efficiency between JIT buffer and
+	   other segments, and potentially offer PHP ~2% more performance.
+	*/
+
+	php_start_addr = get_php_start_addr();
+
+	/* Do preferred allocation only if
+	   1) PHP starts from above 4GB address
+	   2) Enough free space before PHP segments
+	      (Reserve one page hole for alignment)
+	*/
+	if (php_start_addr &&
+		(ptrdiff_t) php_start_addr > 0xFFFFFFFF &&
+		(ptrdiff_t) php_start_addr > (requested_size + one_page_hole)) {
+		/* Calculate the preferred start address */
+		preferred_mmap_addr = php_start_addr - requested_size - one_page_hole;
+	}
+
 #ifdef MAP_HUGETLB
-	size_t huge_page_size = 2 * 1024 * 1024;
 
 	/* Try to allocate huge pages first to reduce dTLB misses.
 	 * OSes has to be configured properly
@@ -69,6 +130,16 @@ static int create_segments(size_t requested_size, zend_shared_segment ***shared_
 	 * (boot time config only, but enabled by default on most arches).
 	 */
 	if (requested_size >= huge_page_size && requested_size % huge_page_size == 0) {
+#if defined(__x86_64__) && defined(__linux__)
+		/* Try to use preferred address first to allocate huge pages,
+		   if failed, fall through to previous allocation logic */
+		preferred_mmap_addr = (void*)(ZEND_MM_ALIGNED_SIZE_EX((ptrdiff_t)preferred_mmap_addr, huge_page_size));
+		p = mmap(preferred_mmap_addr, requested_size, flags, MAP_SHARED|MAP_ANONYMOUS|MAP_HUGETLB, fd, 0);
+		if (p != MAP_FAILED) {
+			goto success;
+		}
+#endif /* __x86_64__ && __linux__ */
+
 # if defined(__x86_64__) && defined(MAP_32BIT)
 		/* to got HUGE PAGES in low 32-bit address we have to reserve address
 		   space and then remap it using MAP_HUGETLB */
@@ -81,13 +152,23 @@ static int create_segments(size_t requested_size, zend_shared_segment ***shared_
 			if (p != MAP_FAILED) {
 				goto success;
 			} else {
+#if defined(__x86_64__) && defined(__linux__)
+				/* Try to use preferred address first;
+				   if failed, fall through to previous allocation logic */
+				preferred_mmap_addr = (void*)(ZEND_MM_ALIGNED_SIZE_EX((ptrdiff_t)preferred_mmap_addr, normal_page_size));
+				p = mmap(preferred_mmap_addr, requested_size, flags, MAP_SHARED|MAP_ANONYMOUS, fd, 0);
+				if (p != MAP_FAILED) {
+					goto success;
+				}
+#endif /* __x86_64__&& __linux__ */
 				p = mmap(NULL, requested_size, flags, MAP_SHARED|MAP_ANONYMOUS|MAP_32BIT, fd, 0);
 				if (p != MAP_FAILED) {
 					goto success;
 				}
 			}
 		}
-# endif
+# endif /* __x86_64__ && MAP_32BIT */
+
 		p = mmap(0, requested_size, flags, MAP_SHARED|MAP_ANONYMOUS|MAP_HUGETLB, fd, 0);
 		if (p != MAP_FAILED) {
 			goto success;
@@ -98,7 +179,18 @@ static int create_segments(size_t requested_size, zend_shared_segment ***shared_
 	if (p != MAP_FAILED) {
 		goto success;
 	}
-#endif
+#endif /* MAP_HUGETLB */
+
+	/* Allocate 4KB pages because huge page not supported */
+#if defined(__x86_64__) && defined(__linux__)
+	/* Try to use preferred address first;
+	   if failed, fall through to previous allocation logic */
+	preferred_mmap_addr = (void*)(ZEND_MM_ALIGNED_SIZE_EX((ptrdiff_t)preferred_mmap_addr, normal_page_size));
+	p = mmap(preferred_mmap_addr, requested_size, flags, MAP_SHARED|MAP_ANONYMOUS, fd, 0);
+	if (p != MAP_FAILED) {
+		goto success;
+	}
+#endif /* __x86_64__&& __linux__ */
 
 	p = mmap(0, requested_size, flags, MAP_SHARED|MAP_ANONYMOUS, fd, 0);
 	if (p == MAP_FAILED) {
