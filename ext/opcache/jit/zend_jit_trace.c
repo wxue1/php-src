@@ -7395,6 +7395,57 @@ static void zend_jit_dump_exit_info(zend_jit_trace_info *t)
 	}
 }
 
+void zend_jit_shutdown_preloaded_script(zend_persistent_script *script) {
+	zend_class_entry *ce;
+	zend_op_array *op_array;
+
+	zend_jit_shutdown_preloaded_op_array(&script->script.main_op_array);
+
+	ZEND_HASH_FOREACH_PTR(&script->script.function_table, op_array) {
+		zend_jit_shutdown_preloaded_op_array(op_array);
+	} ZEND_HASH_FOREACH_END();
+
+	ZEND_HASH_FOREACH_PTR(&script->script.class_table, ce) {
+		ZEND_HASH_FOREACH_PTR(&ce->function_table, op_array) {
+			if (op_array->type == ZEND_USER_FUNCTION) {
+				zend_jit_shutdown_preloaded_op_array(op_array);
+			}
+		} ZEND_HASH_FOREACH_END();
+	} ZEND_HASH_FOREACH_END();
+}
+
+void zend_jit_shutdown_preloaded_op_array(zend_op_array *op_array) {
+    zend_func_info *func_info = ZEND_FUNC_INFO(op_array);
+    if (!func_info) {
+		return;
+	}
+    if (func_info->flags & ZEND_FUNC_JIT_ON_HOT_TRACE) {
+        zend_jit_shutdown_hot_trace_counters(op_array);
+    }
+}
+
+int zend_jit_shutdown_hot_trace_counters(zend_op_array *op_array)
+{
+	zend_jit_op_array_trace_extension *jit_extension;
+	uint32_t i;
+
+	jit_extension = (zend_jit_op_array_trace_extension*)ZEND_FUNC_INFO(op_array);
+	for (i = 0; i < op_array->last; i++) {
+        if (jit_extension->trace_info[i].trace_flags & (ZEND_JIT_TRACE_JITED|ZEND_JIT_TRACE_BLACKLISTED)) {
+            continue;
+        }
+        if (jit_extension->trace_info[i].trace_flags & (ZEND_JIT_TRACE_START_LOOP | ZEND_JIT_TRACE_START_ENTER | ZEND_JIT_TRACE_START_RETURN)) {
+                SHM_UNPROTECT();
+                zend_jit_unprotect();
+			    op_array->opcodes[i].handler = jit_extension->trace_info[i].orig_handler;
+                zend_jit_protect();
+                SHM_PROTECT();
+                fprintf(stderr, "wangxue stop jit\n");
+            }
+    }
+	return SUCCESS;
+}
+
 int ZEND_FASTCALL zend_jit_trace_hot_root(zend_execute_data *execute_data, const zend_op *opline)
 {
 	const zend_op *orig_opline;
@@ -7430,7 +7481,8 @@ repeat:
 	}
 
 	if (JIT_G(debug) & ZEND_JIT_DEBUG_TRACE_START) {
-		fprintf(stderr, "---- TRACE %d start (%s) %s%s%s() %s:%d\n",
+		fprintf(stderr, "line %d---- TRACE %d start (%s) %s%s%s() %s:%d\n",
+			__LINE__,
 			trace_num,
 			zend_jit_trace_star_desc(ZEND_OP_TRACE_INFO(opline, offset)->trace_flags),
 			EX(func)->op_array.scope ? ZSTR_VAL(EX(func)->op_array.scope->name) : "",
@@ -7443,6 +7495,15 @@ repeat:
 
 	if (ZEND_JIT_TRACE_NUM >= JIT_G(max_root_traces)) {
 		stop = ZEND_JIT_TRACE_STOP_TOO_MANY_TRACES;
+        for (uint32_t i = 0; i<ZCSG(hash).max_num_entries; i++) {
+            zend_accel_hash_entry *cache_entry;
+            for (cache_entry = ZCSG(hash).hash_table[i]; cache_entry; cache_entry = cache_entry->next) {
+                zend_persistent_script *script;
+                if (cache_entry->indirect) continue;
+                script = (zend_persistent_script *)cache_entry->data;
+                zend_jit_shutdown_preloaded_script(script);
+            }
+        }
 		goto abort;
 	}
 
