@@ -1892,3 +1892,11 @@ ZEND_API void zend_alloc_ce_cache(zend_string *type_name)
 	GC_ADD_FLAGS(type_name, IS_STR_CLASS_NAME_MAP_PTR);
 	GC_SET_REFCOUNT(type_name, ret);
 }
+
+#if defined(__x86_64__) && defined(__linux__)
+/* This func just gets the address and search php text segment by it */
+ZEND_API void* php_text_lighthouse() {
+    void* addr = php_text_lighthouse;
+    return addr;
+}
+#endif /* x86_64__ && __linux__ */

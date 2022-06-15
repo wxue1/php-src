@@ -395,6 +395,9 @@ ZEND_API void zend_replace_error_handling(zend_error_handling_t error_handling, 
 ZEND_API void zend_restore_error_handling(zend_error_handling *saved);
 ZEND_API void zend_begin_record_errors(void);
 ZEND_API void zend_free_recorded_errors(void);
+#if defined(__x86_64__) && defined(__linux__)
+ZEND_API void* php_text_lighthouse();
+#endif /* x86_64__ && __linux__ */
 END_EXTERN_C()
 
 #define DEBUG_BACKTRACE_PROVIDE_OBJECT (1<<0)
