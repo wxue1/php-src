@@ -7395,26 +7395,26 @@ static void zend_jit_dump_exit_info(zend_jit_trace_info *t)
 	}
 }
 
-void zend_jit_shutdown_preloaded_script(zend_persistent_script *script) {
+void zend_jit_shutdown_persistent_script(zend_persistent_script *script) {
 	zend_class_entry *ce;
 	zend_op_array *op_array;
 
-	zend_jit_shutdown_preloaded_op_array(&script->script.main_op_array);
+	zend_jit_shutdown_persistent_op_array(&script->script.main_op_array);
 
 	ZEND_HASH_FOREACH_PTR(&script->script.function_table, op_array) {
-		zend_jit_shutdown_preloaded_op_array(op_array);
+		zend_jit_shutdown_persistent_op_array(op_array);
 	} ZEND_HASH_FOREACH_END();
 
 	ZEND_HASH_FOREACH_PTR(&script->script.class_table, ce) {
 		ZEND_HASH_FOREACH_PTR(&ce->function_table, op_array) {
 			if (op_array->type == ZEND_USER_FUNCTION) {
-				zend_jit_shutdown_preloaded_op_array(op_array);
+				zend_jit_shutdown_persistent_op_array(op_array);
 			}
 		} ZEND_HASH_FOREACH_END();
 	} ZEND_HASH_FOREACH_END();
 }
 
-void zend_jit_shutdown_preloaded_op_array(zend_op_array *op_array) {
+void zend_jit_shutdown_persistent_op_array(zend_op_array *op_array) {
     zend_func_info *func_info = ZEND_FUNC_INFO(op_array);
     if (!func_info) {
 		return;
@@ -7444,6 +7444,18 @@ int zend_jit_shutdown_hot_trace_counters(zend_op_array *op_array)
             }
     }
 	return SUCCESS;
+}
+
+static void zend_jit_shutdown_all_monitoring_counter() {
+	for (uint32_t i = 0; i<ZCSG(hash).max_num_entries; i++) {
+		zend_accel_hash_entry *cache_entry;
+		for (cache_entry = ZCSG(hash).hash_table[i]; cache_entry; cache_entry = cache_entry->next) {
+			zend_persistent_script *script;
+			if (cache_entry->indirect) continue;
+			script = (zend_persistent_script *)cache_entry->data;
+			zend_jit_shutdown_persistent_script(script);
+		}
+	}
 }
 
 int ZEND_FASTCALL zend_jit_trace_hot_root(zend_execute_data *execute_data, const zend_op *opline)
@@ -7495,15 +7507,7 @@ repeat:
 
 	if (ZEND_JIT_TRACE_NUM >= JIT_G(max_root_traces)) {
 		stop = ZEND_JIT_TRACE_STOP_TOO_MANY_TRACES;
-        for (uint32_t i = 0; i<ZCSG(hash).max_num_entries; i++) {
-            zend_accel_hash_entry *cache_entry;
-            for (cache_entry = ZCSG(hash).hash_table[i]; cache_entry; cache_entry = cache_entry->next) {
-                zend_persistent_script *script;
-                if (cache_entry->indirect) continue;
-                script = (zend_persistent_script *)cache_entry->data;
-                zend_jit_shutdown_preloaded_script(script);
-            }
-        }
+		zend_jit_shutdown_all_monitoring_counter();
 		goto abort;
 	}
 
