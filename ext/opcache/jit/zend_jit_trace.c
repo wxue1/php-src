@@ -7489,11 +7489,11 @@ repeat:
 			if (stop == ZEND_JIT_TRACE_STOP_LINK) {
 				uint32_t idx = trace_buffer[1].last;
 				uint32_t link_to = zend_jit_find_trace(trace_buffer[idx].opline->handler);
-				fprintf(stderr, "---- TRACE %d stop (link to %d)\n",
+				fprintf(stderr, "---- TRACE num %d stop (link to %d)\n",
 					trace_num,
 					link_to);
 			} else {
-				fprintf(stderr, "---- TRACE %d stop (%s)\n",
+				fprintf(stderr, "---- TRACE num %d stop (%s)\n",
 					trace_num,
 					zend_jit_trace_stop_description[stop]);
 			}
