@@ -7989,6 +7989,14 @@ int ZEND_FASTCALL zend_jit_trace_exit(uint32_t exit_num, zend_jit_registers_buf 
 	/* Lock-free check if the side trace was already JIT-ed or blacklist-ed in another process */
 	} else if (t->exit_info[exit_num].flags & (ZEND_JIT_EXIT_JITED|ZEND_JIT_EXIT_BLACKLISTED)) {
 		return 0;
+	} else if (ZEND_JIT_TRACE_NUM >= JIT_G(max_root_traces)) {
+		t->exit_info[exit_num].flags |= ZEND_JIT_EXIT_TO_VM;
+		zend_jit_blacklist_trace_exit(trace_num, exit_num);
+		if (JIT_G(debug) & ZEND_JIT_DEBUG_TRACE_BLACKLIST) {
+			fprintf(stderr, "---- EXIT %d/%d blacklisted\n",
+				trace_num, exit_num);
+		}
+		return 0;
 	}
 
 	ZEND_ASSERT(EX(func)->type == ZEND_USER_FUNCTION);
