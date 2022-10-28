@@ -7744,6 +7744,15 @@ int ZEND_FASTCALL zend_jit_trace_hot_side(zend_execute_data *execute_data, uint3
 
 	if (ZEND_JIT_TRACE_NUM >= JIT_G(max_root_traces)) {
 		stop = ZEND_JIT_TRACE_STOP_TOO_MANY_TRACES;
+		// visit all JITTed compiled code, replace side exit to vm handler
+		for (uint32_t i = 1; i < ZEND_JIT_TRACE_NUM; i++) {
+			for (uint32_t j = 0; j < zend_jit_traces[i].exit_count; j++) {
+				zend_jit_blacklist_trace_exit(i, j);
+			}
+		}
+		if (JIT_G(debug) & ZEND_JIT_DEBUG_TRACE_BLACKLIST) {
+			fprintf(stderr, "---- All side exits blacklisted");
+		}
 		goto abort;
 	}
 
