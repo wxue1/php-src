@@ -892,6 +892,12 @@ zend_jit_trace_stop ZEND_FASTCALL zend_jit_trace_execute(zend_execute_data *ex, 
 					stop = ZEND_JIT_TRACE_STOP_TRAMPOLINE;
 					break;
 				}
+				
+				/* side exit do not record func execution */
+				if (start == ZEND_JIT_TRACE_START_SIDE) {
+					stop = ZEND_JIT_TRACE_STOP_TOO_DEEP;
+					break;
+				}
 
 				TRACE_RECORD(ZEND_JIT_TRACE_ENTER,
 					EX(return_value) != NULL ? ZEND_JIT_TRACE_RETURN_VALUE_USED : 0,
