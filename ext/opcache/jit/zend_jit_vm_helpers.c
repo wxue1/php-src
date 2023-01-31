@@ -16,7 +16,7 @@
    |          Xinchen Hui <laruence@php.net>                              |
    +----------------------------------------------------------------------+
 */
-
+#include <stdio.h>
 #include "Zend/zend_execute.h"
 #include "Zend/zend_exceptions.h"
 #include "Zend/zend_vm.h"
@@ -836,6 +836,7 @@ zend_jit_trace_stop ZEND_FASTCALL zend_jit_trace_execute(zend_execute_data *ex, 
 		handler = (zend_vm_opcode_handler_t)ZEND_OP_TRACE_INFO(opline, offset)->call_handler;
 #ifdef HAVE_GCC_GLOBAL_REGS
 		handler();
+		//printf("line:%d handler = %p\n", __LINE__, handler);
 		if (UNEXPECTED(opline == zend_jit_halt_op)) {
 			stop = ZEND_JIT_TRACE_STOP_RETURN;
 			opline = NULL;
@@ -891,17 +892,11 @@ zend_jit_trace_stop ZEND_FASTCALL zend_jit_trace_execute(zend_execute_data *ex, 
 					/* TODO: Can we continue recording ??? */
 					stop = ZEND_JIT_TRACE_STOP_TRAMPOLINE;
 					break;
-				}
-				
-				/* side exit do not record func execution */
-				if (start == ZEND_JIT_TRACE_START_SIDE) {
-					stop = ZEND_JIT_TRACE_STOP_TOO_DEEP;
-					break;
-				}
-
+				}		
 				TRACE_RECORD(ZEND_JIT_TRACE_ENTER,
 					EX(return_value) != NULL ? ZEND_JIT_TRACE_RETURN_VALUE_USED : 0,
 					op_array);
+				//printf("line:%d\n", __LINE__);
 
 				count = zend_jit_trace_recursive_call_count(&EX(func)->op_array, unrolled_calls, ret_level, level);
 
@@ -1053,6 +1048,17 @@ zend_jit_trace_stop ZEND_FASTCALL zend_jit_trace_execute(zend_execute_data *ex, 
 		}
 
 		trace_flags = ZEND_OP_TRACE_INFO(opline, offset)->trace_flags;
+		// printf("line:%d, trace_flag&JITted = %d, trace_buffer[idx-1].info = %d \n", 
+		// __LINE__, 
+		// (trace_flags & ZEND_JIT_TRACE_JITED),
+		// trace_buffer[idx-1].info);
+		/* side exit do not record func execution process */
+		if (start == ZEND_JIT_TRACE_START_SIDE && trace_buffer[idx-1].op == ZEND_JIT_TRACE_ENTER) {
+			if ((trace_flags & ZEND_JIT_TRACE_JITED) == 0) {
+				stop = ZEND_JIT_TRACE_STOP_JIT_LATER;
+				break;
+			}
+		}
 		if (trace_flags) {
 			if (trace_flags & ZEND_JIT_TRACE_JITED) {
 				if (trace_flags & ZEND_JIT_TRACE_START_LOOP) {
@@ -1060,6 +1066,7 @@ zend_jit_trace_stop ZEND_FASTCALL zend_jit_trace_execute(zend_execute_data *ex, 
 					 && level + ret_level == 0
 					 && zend_jit_trace_bad_stop_event(orig_opline, JIT_G(blacklist_root_trace) - 1) !=
 							ZEND_JIT_TRACE_STOP_COMPILED_LOOP) {
+						//printf("line:%d\n", __LINE__);
 						/* Fail to try close outer loop through side exit.
 						   If this doesn't work just link. */
 						stop = ZEND_JIT_TRACE_STOP_COMPILED_LOOP;
@@ -1070,6 +1077,7 @@ zend_jit_trace_stop ZEND_FASTCALL zend_jit_trace_execute(zend_execute_data *ex, 
 					}
 				} else if (trace_flags & ZEND_JIT_TRACE_START_ENTER) {
 					if (start != ZEND_JIT_TRACE_START_RETURN) {
+						//printf("line:%d\n", __LINE__);
 						// TODO: We may try to inline function ???
 						stop = ZEND_JIT_TRACE_STOP_LINK;
 						break;
