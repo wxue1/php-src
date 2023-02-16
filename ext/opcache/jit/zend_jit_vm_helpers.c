@@ -896,6 +896,7 @@ zend_jit_trace_stop ZEND_FASTCALL zend_jit_trace_execute(zend_execute_data *ex, 
 				TRACE_RECORD(ZEND_JIT_TRACE_ENTER,
 					EX(return_value) != NULL ? ZEND_JIT_TRACE_RETURN_VALUE_USED : 0,
 					op_array);
+				if (JIT_G(debug)) {fprintf(stderr, "---- TRACE ZEND_JIT_TRACE_ENTER");}
 
 				count = zend_jit_trace_recursive_call_count(&EX(func)->op_array, unrolled_calls, ret_level, level);
 
@@ -1046,7 +1047,14 @@ zend_jit_trace_stop ZEND_FASTCALL zend_jit_trace_execute(zend_execute_data *ex, 
 			break;
 		}
 
+		//start == ZEND_JIT_TRACE_START_SIDE && 
 		trace_flags = ZEND_OP_TRACE_INFO(opline, offset)->trace_flags;
+		if (trace_buffer[idx-1].op == ZEND_JIT_TRACE_ENTER) {
+			if ((trace_flags & ZEND_JIT_TRACE_JITED) == 0) {
+				stop = ZEND_JIT_TRACE_STOP_JIT_LATER;
+				break;
+			}
+		}
 		if (trace_flags) {
 			if (trace_flags & ZEND_JIT_TRACE_JITED) {
 				if (trace_flags & ZEND_JIT_TRACE_START_LOOP) {

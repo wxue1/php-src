@@ -7517,11 +7517,13 @@ abort:
 		}
 		if (!ZEND_JIT_TRACE_STOP_MAY_RECOVER(stop)
 		 || zend_jit_trace_is_bad_root(orig_opline, stop, offset)) {
-			if (JIT_G(debug) & ZEND_JIT_DEBUG_TRACE_BLACKLIST) {
-				fprintf(stderr, "---- TRACE %d blacklisted\n",
-					trace_num);
+			if (stop != ZEND_JIT_TRACE_STOP_JIT_LATER) {
+				if (JIT_G(debug) & ZEND_JIT_DEBUG_TRACE_BLACKLIST) {
+					fprintf(stderr, "---- TRACE %d blacklisted\n",
+						trace_num);
+				}
+				zend_jit_blacklist_root_trace(orig_opline, offset);
 			}
-			zend_jit_blacklist_root_trace(orig_opline, offset);
 		}
 		if (ZEND_JIT_TRACE_STOP_REPEAT(stop)) {
 			execute_data = EG(current_execute_data);
@@ -7842,10 +7844,12 @@ abort:
 		}
 		if (!ZEND_JIT_TRACE_STOP_MAY_RECOVER(stop)
 		 || zend_jit_trace_exit_is_bad(parent_num, exit_num)) {
-			zend_jit_blacklist_trace_exit(parent_num, exit_num);
-			if (JIT_G(debug) & ZEND_JIT_DEBUG_TRACE_BLACKLIST) {
-				fprintf(stderr, "---- EXIT %d/%d blacklisted\n",
-					parent_num, exit_num);
+			if (stop != ZEND_JIT_TRACE_STOP_JIT_LATER) {
+				zend_jit_blacklist_trace_exit(parent_num, exit_num);
+				if (JIT_G(debug) & ZEND_JIT_DEBUG_TRACE_BLACKLIST) {
+					fprintf(stderr, "---- EXIT %d/%d blacklisted\n",
+						parent_num, exit_num);
+				}
 			}
 		}
 		if (ZEND_JIT_TRACE_STOP_REPEAT(stop)) {
