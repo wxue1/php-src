@@ -18,6 +18,7 @@
 
 static zend_op_array dummy_op_array;
 static zend_jit_trace_info *zend_jit_traces = NULL;
+static int inline_func_count = 0;
 static const void **zend_jit_exit_groups = NULL;
 
 #define ZEND_JIT_COUNTER_NUM   zend_jit_traces[0].root
@@ -7257,6 +7258,7 @@ static void zend_jit_dump_trace(zend_jit_trace_rec *trace_buffer, zend_ssa *tssa
 					ZSTR_VAL(op_array->function_name) :
 					ZSTR_VAL(op_array->filename));
 			level++;
+			inline_func_count++;
 			if (tssa && tssa->var_info) {
 				call_level++;
 				v = ZEND_JIT_TRACE_GET_FIRST_SSA_VAR(p->info);
@@ -7492,6 +7494,9 @@ repeat:
 				fprintf(stderr, "---- TRACE %d stop (link to %d)\n",
 					trace_num,
 					link_to);
+				if (inline_func_count > 0) {
+					inline_func_count--;
+				}
 			} else {
 				fprintf(stderr, "---- TRACE %d stop (%s)\n",
 					trace_num,
@@ -7504,6 +7509,9 @@ repeat:
 				fprintf(stderr, "---- TRACE %d %s\n",
 					trace_num,
 					zend_jit_trace_stop_description[stop]);
+				if (stop == ZEND_JIT_TRACE_STOP_COMPILED) {
+					fprintf(stderr, "---- inline_func %d \n", inline_func_count);
+				}
 			}
 		} else {
 			goto abort;
@@ -7511,15 +7519,19 @@ repeat:
 	} else {
 abort:
 		if (JIT_G(debug) & ZEND_JIT_DEBUG_TRACE_ABORT) {
-			fprintf(stderr, "---- TRACE %d abort (%s)\n",
+			inline_func_count = 0;
+			fprintf(stderr, "---- TRACE %d abort (%s) inline_func %d \n",
 				trace_num,
-				zend_jit_trace_stop_description[stop]);
+				zend_jit_trace_stop_description[stop],
+				inline_func_count);
 		}
 		if (!ZEND_JIT_TRACE_STOP_MAY_RECOVER(stop)
 		 || zend_jit_trace_is_bad_root(orig_opline, stop, offset)) {
+			inline_func_count = 0;
 			if (JIT_G(debug) & ZEND_JIT_DEBUG_TRACE_BLACKLIST) {
-				fprintf(stderr, "---- TRACE %d blacklisted\n",
-					trace_num);
+				fprintf(stderr, "---- TRACE %d blacklisted inline_func %d \n",
+					trace_num,
+					inline_func_count);
 			}
 			zend_jit_blacklist_root_trace(orig_opline, offset);
 		}
@@ -7534,6 +7546,7 @@ abort:
 		fprintf(stderr, "\n");
 	}
 
+	inline_func_count = 0;
 	return ret;
 }
 
@@ -7808,6 +7821,9 @@ int ZEND_FASTCALL zend_jit_trace_hot_side(zend_execute_data *execute_data, uint3
 				fprintf(stderr, "---- TRACE %d stop (link to %d)\n",
 					trace_num,
 					link_to);
+				if (inline_func_count > 0) {
+					inline_func_count--;
+				}
 			} else {
 				fprintf(stderr, "---- TRACE %d stop (%s)\n",
 					trace_num,
@@ -7830,22 +7846,28 @@ int ZEND_FASTCALL zend_jit_trace_hot_side(zend_execute_data *execute_data, uint3
 					trace_num,
 					zend_jit_trace_stop_description[stop]);
 			}
+			if (stop == ZEND_JIT_TRACE_STOP_COMPILED) {
+				fprintf(stderr, "---- inline_func %d \n", inline_func_count);
+			}
 		} else {
 			goto abort;
 		}
 	} else {
 abort:
 		if (JIT_G(debug) & ZEND_JIT_DEBUG_TRACE_ABORT) {
-			fprintf(stderr, "---- TRACE %d abort (%s)\n",
+			inline_func_count = 0;
+			fprintf(stderr, "---- TRACE %d abort (%s) inline_func %d \n",
 				trace_num,
-				zend_jit_trace_stop_description[stop]);
+				zend_jit_trace_stop_description[stop],
+				inline_func_count);
 		}
 		if (!ZEND_JIT_TRACE_STOP_MAY_RECOVER(stop)
 		 || zend_jit_trace_exit_is_bad(parent_num, exit_num)) {
 			zend_jit_blacklist_trace_exit(parent_num, exit_num);
+			inline_func_count = 0;
 			if (JIT_G(debug) & ZEND_JIT_DEBUG_TRACE_BLACKLIST) {
-				fprintf(stderr, "---- EXIT %d/%d blacklisted\n",
-					parent_num, exit_num);
+				fprintf(stderr, "---- EXIT %d/%d blacklisted inline_func %d \n",
+					parent_num, exit_num, inline_func_count);
 			}
 		}
 		if (ZEND_JIT_TRACE_STOP_REPEAT(stop)) {
@@ -7858,6 +7880,7 @@ abort:
 		fprintf(stderr, "\n");
 	}
 
+	inline_func_count = 0;
 	return ret;
 }
 
