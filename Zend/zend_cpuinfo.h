@@ -220,4 +220,14 @@ static inline int zend_cpu_supports_pclmul(void) {
 }
 #endif
 
+#if PHP_HAVE_BUILTIN_CPU_SUPPORTS && defined(__GNUC__) && (ZEND_GCC_VERSION >= 11000)
+ZEND_NO_SANITIZE_ADDRESS
+static inline int zend_cpu_supports_cldemote(void) {
+#if PHP_HAVE_BUILTIN_CPU_INIT
+	__builtin_cpu_init();
+#endif
+	return __builtin_cpu_supports("cldemote");
+}
+#endif
+
 #endif

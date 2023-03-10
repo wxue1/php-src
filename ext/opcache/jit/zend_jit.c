@@ -137,6 +137,23 @@ static zend_jit_trace_info *zend_jit_get_current_trace_info(void);
 static uint32_t zend_jit_trace_find_exit_point(const void* addr);
 #endif
 
+#if ZEND_JIT_TARGET_X86
+#  if defined(__linux__) && defined(__GNUC__) && (ZEND_GCC_VERSION >= 11000)
+#include <immintrin.h>
+#pragma GCC target("cldemote")
+static int cpu_cldemote_support = 0;
+static inline void shared_cacheline_demote(void *start, size_t size) {
+    void *cache_line_base;
+    cache_line_base = (void *)(((uintptr_t)start) & ~0x3F);
+    do {
+        _cldemote(cache_line_base);
+        // next cacheline start size
+        cache_line_base += 64;
+    } while (cache_line_base < start + size);
+}
+#  endif
+#endif
+
 static int zend_jit_assign_to_variable(dasm_State    **Dst,
                                        const zend_op  *opline,
                                        zend_jit_addr   var_use_addr,
@@ -971,6 +988,15 @@ static void *dasm_link_and_encode(dasm_State             **dasm_state,
 
 	/* flush the hardware I-cache */
 	JIT_CACHE_FLUSH(entry, entry + size);
+
+	/* hint to the hardware to push out the cache line that contains the linear address */
+#if ZEND_JIT_TARGET_X86
+#  if defined(__linux__) && defined(__GNUC__) && (ZEND_GCC_VERSION >= 11000)
+if (cpu_cldemote_support) {
+    shared_cacheline_demote(entry, size);
+}
+#  endif
+#endif
 
 	if (trace_num) {
 		zend_jit_trace_add_code(entry, dasm_getpclabel(dasm_state, 1));
@@ -4929,6 +4955,12 @@ ZEND_EXT_API int zend_jit_startup(void *buf, size_t size, bool reattached)
 			return FAILURE;
 		}
 	}
+#endif
+
+#if ZEND_JIT_TARGET_X86
+#  if defined(__linux__) && defined(__GNUC__) && (ZEND_GCC_VERSION >= 11000)
+	cpu_cldemote_support = zend_cpu_supports_cldemote();
+#  endif
 #endif
 
 	dasm_buf = buf;
