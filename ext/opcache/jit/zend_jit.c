@@ -41,6 +41,10 @@
 
 #if ZEND_JIT_TARGET_X86
 # include "jit/zend_jit_x86.h"
+#if defined(__GNUC__)
+#   include <immintrin.h>
+#   pragma GCC target("cldemote")
+#endif
 #elif ZEND_JIT_TARGET_ARM64
 # include "jit/zend_jit_arm64.h"
 #endif
@@ -135,6 +139,19 @@ static bool zend_jit_needs_arg_dtor(const zend_function *func, uint32_t arg_num,
 #if ZEND_JIT_TARGET_ARM64
 static zend_jit_trace_info *zend_jit_get_current_trace_info(void);
 static uint32_t zend_jit_trace_find_exit_point(const void* addr);
+#endif
+
+#if ZEND_JIT_TARGET_X86
+#   if defined(__GNUC__)
+static inline void shared_cacheline_demote(void *start, size_t size) {
+    void *cache_line_base;
+    cache_line_base = (void *)(((uintptr_t)start) & ~0x3F);
+    do {
+        _cldemote(cache_line_base);
+        cache_line_base += 64;
+    } while (start + size > cache_line_base);
+}
+#    endif
 #endif
 
 static int zend_jit_assign_to_variable(dasm_State    **Dst,
@@ -971,6 +988,13 @@ static void *dasm_link_and_encode(dasm_State             **dasm_state,
 
 	/* flush the hardware I-cache */
 	JIT_CACHE_FLUSH(entry, entry + size);
+
+	/* hint to the hardware to push out the cache line that contains the linear address */
+#if ZEND_JIT_TARGET_X86
+#   if defined(__GNUC__)
+	shared_cacheline_demote(entry, size);
+#   endif
+#endif
 
 	if (trace_num) {
 		zend_jit_trace_add_code(entry, dasm_getpclabel(dasm_state, 1));
