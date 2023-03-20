@@ -1048,6 +1048,13 @@ zend_jit_trace_stop ZEND_FASTCALL zend_jit_trace_execute(zend_execute_data *ex, 
 
 		trace_flags = ZEND_OP_TRACE_INFO(opline, offset)->trace_flags;
 		if (trace_flags) {
+			/* When enter a function, stop current tracing and restart a new one */
+			if (trace_buffer[idx-1].op == ZEND_JIT_TRACE_ENTER) {
+				if (!(trace_flags & ZEND_JIT_TRACE_JITED)) {
+					stop = ZEND_JIT_TRACE_STOP_JIT_DEEPER_FUNC;
+					break;
+				}
+			}
 			if (trace_flags & ZEND_JIT_TRACE_JITED) {
 				if (trace_flags & ZEND_JIT_TRACE_START_LOOP) {
 					if ((start & ZEND_JIT_TRACE_START_LOOP) != 0
