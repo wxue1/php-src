@@ -149,6 +149,7 @@ static size_t tsrm_tls_offset;
 #endif
 
 #define IS_32BIT(addr) (((uintptr_t)(addr)) <= 0x7fffffff)
+#define IS_64BIT(addr) (((uintptr_t)(addr)) <= 0x7fffffffffffffff)
 
 #define IS_SIGNED_32BIT(val) ((((intptr_t)(val)) <= 0x7fffffff) && (((intptr_t)(val)) >= (-2147483647 - 1)))
 
@@ -353,7 +354,7 @@ static size_t tsrm_tls_offset;
 
 |.macro EXT_CALL, func, tmp_reg
 |	.if X64
-||		if (IS_32BIT(dasm_end) && IS_32BIT(func)) {
+||		if (IS_64BIT(dasm_end) && IS_64BIT(func)) {
 |			call qword &func
 ||		} else {
 |			LOAD_ADDR tmp_reg, func
