@@ -7404,7 +7404,7 @@ int ZEND_FASTCALL zend_jit_trace_hot_root(zend_execute_data *execute_data, const
 	zend_jit_op_array_trace_extension *jit_extension;
 	size_t offset;
 	uint32_t trace_num;
-	zend_jit_trace_rec trace_buffer[ZEND_JIT_TRACE_MAX_LENGTH];
+	zend_jit_trace_rec *trace_buffer = (zend_jit_trace_rec *)malloc(JIT_G(max_trace_length) * sizeof(zend_jit_trace_rec));
 
 	ZEND_ASSERT(EX(func)->type == ZEND_USER_FUNCTION);
 	ZEND_ASSERT(opline >= EX(func)->op_array.opcodes &&
@@ -7720,7 +7720,7 @@ int ZEND_FASTCALL zend_jit_trace_hot_side(zend_execute_data *execute_data, uint3
 	zend_jit_trace_stop stop;
 	int ret = 0;
 	uint32_t trace_num;
-	zend_jit_trace_rec trace_buffer[ZEND_JIT_TRACE_MAX_LENGTH];
+	zend_jit_trace_rec *trace_buffer = (zend_jit_trace_rec *)malloc(JIT_G(max_trace_length) * sizeof(zend_jit_trace_rec));
 	uint32_t is_megamorphic = 0;
 	uint32_t polymorphism = 0;
 
