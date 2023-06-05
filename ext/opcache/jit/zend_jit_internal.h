@@ -338,6 +338,7 @@ zend_constant* ZEND_FASTCALL zend_jit_check_constant(const zval *key);
 
 #define ZEND_JIT_TRACE_STOP(_) \
 	_(LOOP,              "loop") \
+	_(LONG_INLINE_FUNC,  "long inline func") \
 	_(RECURSIVE_CALL,    "recursive call") \
 	_(RECURSIVE_RET,     "recursive return") \
 	_(RETURN,            "return") \
@@ -412,6 +413,7 @@ typedef enum _zend_jit_trace_stop {
 #define ZEND_JIT_EXIT_PACKED_GUARD  (1<<7)
 #define ZEND_JIT_EXIT_CLOSURE_CALL  (1<<8) /* exit because of polymorphic INIT_DYNAMIC_CALL call */
 #define ZEND_JIT_EXIT_METHOD_CALL   (1<<9) /* exit because of polymorphic INIT_METHOD_CALL call */
+#define ZEND_JIT_EXIT_TO_VM_INLINE  (1<<10) /* exit to VM without attempt to create a side trace */
 
 typedef union _zend_op_trace_info {
 	zend_op dummy; /* the size of this structure must be the same as zend_op */
