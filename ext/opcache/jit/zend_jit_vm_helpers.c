@@ -562,8 +562,10 @@ zend_jit_trace_stop ZEND_FASTCALL zend_jit_trace_execute(zend_execute_data *ex, 
 	uint8_t  trace_flags, op1_type, op2_type, op3_type;
 	zend_class_entry *ce1, *ce2;
 	const zend_op *link_to_enter_opline = NULL;
+	const zend_op *long_inline_enter_opline = NULL;
 	int backtrack_link_to_enter = -1;
 	int backtrack_recursion = -1;
+	int backtrack_long_inline_func = -1;
 	int backtrack_ret_recursion = -1;
 	int backtrack_ret_recursion_level = 0;
 	int loop_unroll_limit = 0;
@@ -908,6 +910,13 @@ zend_jit_trace_stop ZEND_FASTCALL zend_jit_trace_execute(zend_execute_data *ex, 
 				} else if (count >= JIT_G(max_recursive_calls)) {
 					stop = ZEND_JIT_TRACE_STOP_DEEP_RECURSION;
 					break;
+				} else if ( idx > 16 && \
+					backtrack_long_inline_func < 0 && \
+					(ZEND_OP_TRACE_INFO(opline, offset)->trace_flags & ZEND_JIT_TRACE_JITED)) {
+					backtrack_long_inline_func = idx;
+					long_inline_enter_opline = opline;
+					//fprintf(stderr, "---- TRACE execute backtrack_long_inline_func = %d \n", backtrack_long_inline_func);
+					break;
 				}
 
 				unrolled_calls[ret_level + level] = &EX(func)->op_array;
@@ -1137,11 +1146,18 @@ zend_jit_trace_stop ZEND_FASTCALL zend_jit_trace_execute(zend_execute_data *ex, 
 			idx = backtrack_recursion;
 			stop = ZEND_JIT_TRACE_STOP_RECURSIVE_CALL;
 			end_opline = orig_opline;
+		} else if (backtrack_long_inline_func > 0) {
+			idx = backtrack_long_inline_func;
+			//stop = ZEND_JIT_TRACE_STOP_LONG_INLINE_FUNC;
+			stop = ZEND_JIT_TRACE_STOP_LINK;
+			end_opline = long_inline_enter_opline;
+			//fprintf(stderr, "---- TRACE end backtrack_long_inline_func = %d \n", backtrack_long_inline_func);
 		} else if (backtrack_ret_recursion > 0) {
 			idx = backtrack_ret_recursion;
 			ret_level = backtrack_ret_recursion_level;
 			stop = ZEND_JIT_TRACE_STOP_RECURSIVE_RET;
 			end_opline = orig_opline;
+			//fprintf(stderr, "---- TRACE end backtrack_ret_recursion = %d \n", backtrack_ret_recursion);
 		} else if (backtrack_link_to_enter > 0) {
 			if (stop == ZEND_JIT_TRACE_STOP_DEEP_RECURSION
 			 && zend_jit_trace_bad_stop_event(orig_opline, JIT_G(blacklist_root_trace) / 2) ==
@@ -1149,6 +1165,7 @@ zend_jit_trace_stop ZEND_FASTCALL zend_jit_trace_execute(zend_execute_data *ex, 
 				idx = backtrack_link_to_enter;
 				stop = ZEND_JIT_TRACE_STOP_LINK;
 				end_opline = link_to_enter_opline;
+				//fprintf(stderr, "---- TRACE end backtrack_link_to_enter = %d \n", backtrack_link_to_enter);
 			}
 		}
 	}

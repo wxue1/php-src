@@ -6752,6 +6752,16 @@ done:
 
 			zend_jit_trace_end_loop(&dasm_state, 0, timeout_exit_addr); /* jump back to start of the trace loop */
 		}
+	} else if (p->stop == ZEND_JIT_TRACE_STOP_LONG_INLINE_FUNC) {
+		const void *timeout_exit_addr = NULL;
+		uint32_t exit_point;
+		//op_array->opcodes
+		exit_point = zend_jit_trace_get_exit_point(p->opline, ZEND_JIT_EXIT_TO_VM_INLINE);
+		timeout_exit_addr = zend_jit_trace_get_exit_addr(exit_point);
+		if (!timeout_exit_addr) {
+			goto jit_failure;
+		}
+		zend_jit_trace_end_long_inline_func(&dasm_state, timeout_exit_addr);
 	} else if (p->stop == ZEND_JIT_TRACE_STOP_LINK
 	        || p->stop == ZEND_JIT_TRACE_STOP_INTERPRETER) {
 		if (!zend_jit_trace_deoptimization(&dasm_state, 0, NULL,
