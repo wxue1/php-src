@@ -340,6 +340,7 @@ zend_constant* ZEND_FASTCALL zend_jit_check_constant(const zval *key);
 	_(LOOP,              "loop") \
 	_(RECURSIVE_CALL,    "recursive call") \
 	_(RECURSIVE_RET,     "recursive return") \
+	_(BACKTRACK_INLINE,	 "backtrace inline func") \
 	_(RETURN,            "return") \
 	_(INTERPRETER,       "exit to VM interpreter") \
 	_(LINK,              "link to another trace") \

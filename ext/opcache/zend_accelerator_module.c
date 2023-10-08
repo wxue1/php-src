@@ -302,6 +302,7 @@ ZEND_INI_BEGIN()
 	STD_PHP_INI_ENTRY("opcache.jit_max_recursive_calls"       , "2",                          PHP_INI_ALL,    OnUpdateUnrollC,  max_recursive_calls,   zend_jit_globals, jit_globals)
 	STD_PHP_INI_ENTRY("opcache.jit_max_recursive_returns"     , "2",                          PHP_INI_ALL,    OnUpdateUnrollR,  max_recursive_returns, zend_jit_globals, jit_globals)
 	STD_PHP_INI_ENTRY("opcache.jit_max_polymorphic_calls"     , "2",                          PHP_INI_ALL,    OnUpdateLong,     max_polymorphic_calls, zend_jit_globals, jit_globals)
+	STD_PHP_INI_ENTRY("opcache.jit_trace_inline_func_limit"   , "6",                       PHP_INI_ALL,    OnUpdateLong,     jit_trace_inline_func_limit, zend_jit_globals, jit_globals)
 #endif
 ZEND_INI_END()
 
@@ -792,6 +793,7 @@ ZEND_FUNCTION(opcache_get_configuration)
 	add_assoc_long(&directives,   "opcache.jit_max_root_traces", JIT_G(max_root_traces));
 	add_assoc_long(&directives,   "opcache.jit_max_side_traces", JIT_G(max_side_traces));
 	add_assoc_long(&directives,   "opcache.jit_prof_threshold", JIT_G(prof_threshold));
+	add_assoc_long(&directives,   "opcache.jit_trace_inline_func_limit", JIT_G(jit_trace_inline_func_limit));
 #endif
 
 	add_assoc_zval(return_value, "directives", &directives);
